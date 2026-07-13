@@ -1,0 +1,21 @@
+# Secrets — never commit real API keys
+.streamlit/secrets.toml
+
+# Local database (each deployment starts fresh, or use a persistent
+# volume / external DB for production — see README)
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
