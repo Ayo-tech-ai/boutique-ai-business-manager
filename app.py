@@ -56,7 +56,7 @@ def apply_custom_css():
         }
         
         .dataframe {
-            font-size: 11px !important;
+            font-size: 10px !important;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
             border-collapse: separate !important;
             border-spacing: 0 !important;
@@ -71,19 +71,21 @@ def apply_custom_css():
             background-color: #2c3e50 !important;
             color: white !important;
             font-weight: 600 !important;
-            font-size: 10px !important;
+            font-size: 9px !important;
             text-transform: uppercase !important;
             letter-spacing: 0.3px !important;
-            padding: 5px 8px !important;
+            padding: 4px 6px !important;
             border: none !important;
+            white-space: nowrap !important;
         }
         
         .dataframe tbody tr td {
-            padding: 5px 8px !important;
+            padding: 4px 6px !important;
             border-bottom: 1px solid #e9ecef !important;
             background-color: white !important;
             color: #2c3e50 !important;
-            font-size: 11px !important;
+            font-size: 10px !important;
+            white-space: nowrap !important;
         }
         
         .dataframe tbody tr:last-child td {
@@ -100,7 +102,7 @@ def apply_custom_css():
         
         .metric-card {
             background: white;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             border-left: 3px solid #2c3e50;
             margin-bottom: 4px;
@@ -108,7 +110,7 @@ def apply_custom_css():
         }
         
         .metric-label {
-            font-size: 9px;
+            font-size: 8px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #6c757d;
@@ -116,24 +118,24 @@ def apply_custom_css():
         }
         
         .metric-value {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
             color: #2c3e50;
             margin-top: 1px;
         }
         
         .sidebar-section {
-            margin-top: 12px;
-            margin-bottom: 8px;
+            margin-top: 10px;
+            margin-bottom: 6px;
         }
         
         .sidebar-section h3 {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             color: #2c3e50;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             padding-bottom: 4px;
             border-bottom: 2px solid #e9ecef;
         }
@@ -168,24 +170,19 @@ def apply_custom_css():
             box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
         
-        .table-badge {
-            display: inline-block;
-            background: #2c3e50;
-            color: white;
-            font-size: 9px;
-            padding: 1px 8px;
-            border-radius: 10px;
-            margin-left: 4px;
-        }
-        
         .refresh-indicator {
-            font-size: 10px;
+            font-size: 9px;
             color: #28a745;
             text-align: center;
-            padding: 4px;
+            padding: 3px;
             margin-top: 4px;
             border-radius: 4px;
             background: #e8f5e9;
+        }
+        
+        .timestamp {
+            font-size: 8px;
+            color: #6c757d;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -260,6 +257,17 @@ async def run_agent_turn(runner, session_id, message):
 
 # ---------------- SIDEBAR DASHBOARD ----------------
 
+def format_timestamp(timestamp_str):
+    """Format timestamp to show date and time."""
+    if not timestamp_str:
+        return "—"
+    try:
+        dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%d/%m %H:%M")
+    except:
+        return timestamp_str[:16] if timestamp_str else "—"
+
+
 def display_sidebar_dashboard(service):
     """Display all boutique tables in the sidebar."""
     
@@ -293,11 +301,13 @@ def display_sidebar_dashboard(service):
     
     # ---- KEY METRICS ----
     total_items = len(inventory)
-    total_value = sum(p['quantity_in_stock'] * p['selling_price'] for p in inventory) if inventory else 0
+    total_cost_value = sum(p['quantity_in_stock'] * p['cost_price'] for p in inventory) if inventory else 0
+    total_sell_value = sum(p['quantity_in_stock'] * p['selling_price'] for p in inventory) if inventory else 0
     low_stock = [p for p in inventory if p['quantity_in_stock'] <= p['low_stock_threshold']] if inventory else []
     total_revenue = sales_summary.get('total_revenue', 0)
+    potential_profit = total_sell_value - total_cost_value
     
-    col1, col2, col3 = st.sidebar.columns(3)
+    col1, col2 = st.sidebar.columns(2)
     with col1:
         st.markdown(f"""
         <div class="metric-card" style="border-left-color: #2c3e50;">
@@ -310,17 +320,26 @@ def display_sidebar_dashboard(service):
         st.markdown(f"""
         <div class="metric-card" style="border-left-color: #28a745;">
             <div class="metric-label">Revenue (7d)</div>
-            <div class="metric-value" style="font-size: 14px;">₦{total_revenue:,.0f}</div>
+            <div class="metric-value" style="font-size: 13px;">₦{total_revenue:,.0f}</div>
         </div>
         """, unsafe_allow_html=True)
     
+    col3, col4 = st.sidebar.columns(2)
     with col3:
+        st.markdown(f"""
+        <div class="metric-card" style="border-left-color: #6c757d;">
+            <div class="metric-label">Inventory Cost</div>
+            <div class="metric-value" style="font-size: 13px;">₦{total_cost_value:,.0f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
         low_count = len(low_stock)
         color = "#dc3545" if low_count > 0 else "#28a745"
         st.markdown(f"""
         <div class="metric-card" style="border-left-color: {color};">
             <div class="metric-label">Low Stock</div>
-            <div class="metric-value" style="font-size: 14px; color: {color};">{low_count}</div>
+            <div class="metric-value" style="font-size: 13px; color: {color};">{low_count}</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -332,8 +351,10 @@ def display_sidebar_dashboard(service):
         
         df_inv = pd.DataFrame(inventory)
         if not df_inv.empty:
-            df_display = df_inv[['item_name', 'size', 'color', 'quantity_in_stock', 'selling_price']].copy()
+            df_display = df_inv[['item_name', 'size', 'color', 'quantity_in_stock', 'cost_price', 'selling_price', 'created_at']].copy()
+            df_display['cost_price'] = df_display['cost_price'].apply(lambda x: f"₦{x:,.0f}")
             df_display['selling_price'] = df_display['selling_price'].apply(lambda x: f"₦{x:,.0f}")
+            df_display['created_at'] = df_display['created_at'].apply(format_timestamp)
             
             def color_quantity(row):
                 qty = row['quantity_in_stock']
@@ -346,7 +367,7 @@ def display_sidebar_dashboard(service):
                     return f'<span class="status-ok">✓ {qty}</span>'
             
             df_display['quantity_in_stock'] = df_display.apply(color_quantity, axis=1)
-            df_display.columns = ['Product', 'Size', 'Color', 'Stock', 'Price']
+            df_display.columns = ['Product', 'Size', 'Color', 'Stock', 'Cost', 'Sell', 'Added']
             
             st.sidebar.markdown(
                 df_display.to_html(index=False, escape=False, classes='dataframe'),
@@ -359,9 +380,10 @@ def display_sidebar_dashboard(service):
         
         df_sales = pd.DataFrame(recent_sales)
         if not df_sales.empty:
-            df_sales_display = df_sales[['item_name', 'quantity_sold', 'sale_price', 'customer_name', 'payment_method']].copy()
+            df_sales_display = df_sales[['item_name', 'quantity_sold', 'sale_price', 'customer_name', 'payment_method', 'sale_date']].copy()
             df_sales_display['sale_price'] = df_sales_display['sale_price'].apply(lambda x: f"₦{x:,.0f}")
-            df_sales_display.columns = ['Product', 'Qty', 'Amount', 'Customer', 'Payment']
+            df_sales_display['sale_date'] = df_sales_display['sale_date'].apply(format_timestamp)
+            df_sales_display.columns = ['Product', 'Qty', 'Amount', 'Customer', 'Payment', 'Time']
             
             st.sidebar.markdown(
                 df_sales_display.to_html(index=False, escape=False, classes='dataframe'),
@@ -374,8 +396,9 @@ def display_sidebar_dashboard(service):
         
         df_cust = pd.DataFrame(customers)
         if not df_cust.empty:
-            df_cust_display = df_cust[['name', 'phone', 'instagram_handle']].copy()
-            df_cust_display.columns = ['Name', 'Phone', 'Instagram']
+            df_cust_display = df_cust[['name', 'phone', 'instagram_handle', 'created_at']].copy()
+            df_cust_display['created_at'] = df_cust_display['created_at'].apply(format_timestamp)
+            df_cust_display.columns = ['Name', 'Phone', 'Instagram', 'Joined']
             
             st.sidebar.markdown(
                 df_cust_display.to_html(index=False, escape=False, classes='dataframe'),
@@ -388,9 +411,10 @@ def display_sidebar_dashboard(service):
         
         df_exp = pd.DataFrame(expenses)
         if not df_exp.empty:
-            df_exp_display = df_exp[['description', 'category', 'amount']].copy()
+            df_exp_display = df_exp[['description', 'category', 'amount', 'expense_date']].copy()
             df_exp_display['amount'] = df_exp_display['amount'].apply(lambda x: f"₦{x:,.0f}")
-            df_exp_display.columns = ['Description', 'Category', 'Amount']
+            df_exp_display['expense_date'] = df_exp_display['expense_date'].apply(format_timestamp)
+            df_exp_display.columns = ['Description', 'Category', 'Amount', 'Time']
             
             st.sidebar.markdown(
                 df_exp_display.to_html(index=False, escape=False, classes='dataframe'),
@@ -403,9 +427,10 @@ def display_sidebar_dashboard(service):
         
         df_restock = pd.DataFrame(restocks)
         if not df_restock.empty:
-            df_restock_display = df_restock[['item_name', 'quantity_added', 'cost_price']].copy()
+            df_restock_display = df_restock[['item_name', 'quantity_added', 'cost_price', 'restock_date']].copy()
             df_restock_display['cost_price'] = df_restock_display['cost_price'].apply(lambda x: f"₦{x:,.0f}" if x else "—")
-            df_restock_display.columns = ['Product', 'Qty Added', 'Cost/Unit']
+            df_restock_display['restock_date'] = df_restock_display['restock_date'].apply(format_timestamp)
+            df_restock_display.columns = ['Product', 'Qty Added', 'Cost/Unit', 'Time']
             
             st.sidebar.markdown(
                 df_restock_display.to_html(index=False, escape=False, classes='dataframe'),
@@ -419,14 +444,13 @@ def display_sidebar_dashboard(service):
             ✅ Data refreshed after last action
         </div>
         """, unsafe_allow_html=True)
-        # Reset the flag after displaying
         st.session_state.data_changed = False
     
     # Footer
     st.sidebar.markdown(f"""
-    <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e9ecef;">
-        <p style="font-size: 9px; color: #adb5bd; margin: 0; text-align: center;">
-            Updated: {datetime.now(WAT).strftime('%I:%M %p')}
+    <div style="margin-top: 10px; padding-top: 6px; border-top: 1px solid #e9ecef;">
+        <p style="font-size: 8px; color: #adb5bd; margin: 0; text-align: center;">
+            Updated: {datetime.now(WAT).strftime('%I:%M:%S %p')}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -499,16 +523,10 @@ if prompt := st.chat_input("Tell me about a sale, restock, or ask about your sho
         with st.spinner("Thinking..."):
             try:
                 response = asyncio.run(run_agent_turn(runner, session_id, prompt))
-                
-                # IMPORTANT: Set data_changed flag to trigger sidebar refresh
-                # The agent may have modified data (sale, inventory, expense, restock)
                 st.session_state.data_changed = True
-                
             except Exception as e:
                 response = f"⚠️ Something went wrong: {e}"
         st.markdown(response)
 
     st.session_state.messages.append({"role": "assistant", "content": response})
-    
-    # Force a rerun to refresh the sidebar immediately
     st.rerun()
