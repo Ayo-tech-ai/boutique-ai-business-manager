@@ -1,5 +1,11 @@
 """
 Boutique AI Business Manager — Streamlit App
+
+A conversational AI assistant for online boutique / fashion store
+owners to manage sales, inventory, restocks, expenses, and customers
+through natural chat.
+
+Part of the "Vertical AI Business Managers for SMEs" project series.
 """
 
 import asyncio
@@ -171,6 +177,16 @@ def apply_custom_css():
             border-radius: 10px;
             margin-left: 4px;
         }
+        
+        .refresh-indicator {
+            font-size: 10px;
+            color: #28a745;
+            text-align: center;
+            padding: 4px;
+            margin-top: 4px;
+            border-radius: 4px;
+            background: #e8f5e9;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -217,6 +233,7 @@ def get_or_create_session(session_service):
 
 
 async def run_agent_turn(runner, session_id, message):
+    """Runs one turn of the agent and returns the final text response."""
     events = await runner.run_debug(
         message,
         user_id=USER_ID,
@@ -262,10 +279,10 @@ def display_sidebar_dashboard(service):
     # Fetch all data
     try:
         inventory = service.check_inventory()
-        recent_sales = service.get_recent_sales(limit=8) if hasattr(service, 'get_recent_sales') else []
-        customers = service.get_all_customers(limit=8) if hasattr(service, 'get_all_customers') else []
-        expenses = service.get_recent_expenses(limit=8) if hasattr(service, 'get_recent_expenses') else []
-        restocks = service.get_recent_restocks(limit=8) if hasattr(service, 'get_recent_restocks') else []
+        recent_sales = service.get_recent_sales(limit=8)
+        customers = service.get_all_customers(limit=8)
+        expenses = service.get_recent_expenses(limit=8)
+        restocks = service.get_recent_restocks(limit=8)
         
         today = datetime.now(WAT).strftime("%Y-%m-%d")
         last_week = (datetime.now(WAT) - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -395,6 +412,16 @@ def display_sidebar_dashboard(service):
                 unsafe_allow_html=True
             )
     
+    # ---- AUTO-REFRESH INDICATOR ----
+    if st.session_state.get("data_changed", False):
+        st.sidebar.markdown("""
+        <div class="refresh-indicator">
+            ✅ Data refreshed after last action
+        </div>
+        """, unsafe_allow_html=True)
+        # Reset the flag after displaying
+        st.session_state.data_changed = False
+    
     # Footer
     st.sidebar.markdown(f"""
     <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e9ecef;">
@@ -422,6 +449,10 @@ if not get_api_key():
 boutique_service = get_boutique_service()
 agent, runner, session_service = get_agent_and_runner(boutique_service)
 session_id = get_or_create_session(session_service)
+
+# Initialize data_changed flag if not exists
+if "data_changed" not in st.session_state:
+    st.session_state.data_changed = False
 
 # ---- SIDEBAR ----
 with st.sidebar:
@@ -468,8 +499,16 @@ if prompt := st.chat_input("Tell me about a sale, restock, or ask about your sho
         with st.spinner("Thinking..."):
             try:
                 response = asyncio.run(run_agent_turn(runner, session_id, prompt))
+                
+                # IMPORTANT: Set data_changed flag to trigger sidebar refresh
+                # The agent may have modified data (sale, inventory, expense, restock)
+                st.session_state.data_changed = True
+                
             except Exception as e:
                 response = f"⚠️ Something went wrong: {e}"
         st.markdown(response)
 
     st.session_state.messages.append({"role": "assistant", "content": response})
+    
+    # Force a rerun to refresh the sidebar immediately
+    st.rerun()
