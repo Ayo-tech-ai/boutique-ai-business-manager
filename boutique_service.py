@@ -141,6 +141,21 @@ class BoutiqueService:
         connection.close()
         return [dict(row) for row in rows]
 
+    def get_all_customers(self, limit=20):
+        """Returns recent customers."""
+        connection = self.get_connection()
+        connection.row_factory = sqlite3.Row
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT customer_id, name, phone, instagram_handle, created_at
+            FROM customers
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        connection.close()
+        return [dict(row) for row in rows]
+
     # ---------------- INVENTORY ----------------
 
     def find_item(self, item_name, size=None, color=None):
@@ -214,7 +229,7 @@ class BoutiqueService:
         item_name is not required in this path. Otherwise, item_name is
         required and used to find/create the item by exact match."""
         connection = self.get_connection()
-        connection.row_factory = sqlite3.Row  # MUST be set before cursor is created
+        connection.row_factory = sqlite3.Row
         cursor = connection.cursor()
 
         if confirmed_item_id:
@@ -438,6 +453,27 @@ class BoutiqueService:
         totals["end_date"] = end_date
         return totals
 
+    def get_recent_sales(self, limit=10):
+        """Returns the most recent sales with product and customer details."""
+        connection = self.get_connection()
+        connection.row_factory = sqlite3.Row
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            SELECT s.sale_id, s.quantity_sold, s.sale_price, s.payment_method,
+                   s.sale_date, i.item_name, i.size, i.color,
+                   c.name as customer_name
+            FROM sales s
+            JOIN inventory i ON s.item_id = i.item_id
+            LEFT JOIN customers c ON s.customer_id = c.customer_id
+            ORDER BY s.sale_date DESC
+            LIMIT ?
+        """, (limit,))
+        
+        rows = cursor.fetchall()
+        connection.close()
+        return [dict(row) for row in rows]
+
     # ---------------- EXPENSES ----------------
 
     def log_expense(self, description, amount, category=None):
@@ -450,6 +486,21 @@ class BoutiqueService:
         connection.commit()
         connection.close()
         return {"success": True, "message": "Expense logged successfully."}
+
+    def get_recent_expenses(self, limit=10):
+        """Returns recent expenses."""
+        connection = self.get_connection()
+        connection.row_factory = sqlite3.Row
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT expense_id, description, category, amount, expense_date
+            FROM expenses
+            ORDER BY expense_date DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        connection.close()
+        return [dict(row) for row in rows]
 
     # ---------------- RESTOCKS ----------------
 
@@ -512,3 +563,20 @@ class BoutiqueService:
             "new_stock_level": new_stock,
             "message": "Restock logged successfully."
         }
+
+    def get_recent_restocks(self, limit=10):
+        """Returns recent restocks with item names."""
+        connection = self.get_connection()
+        connection.row_factory = sqlite3.Row
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT r.restock_id, r.quantity_added, r.cost_price, r.restock_date,
+                   i.item_name, i.size, i.color
+            FROM restocks r
+            JOIN inventory i ON r.item_id = i.item_id
+            ORDER BY r.restock_date DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        connection.close()
+        return [dict(row) for row in rows]
