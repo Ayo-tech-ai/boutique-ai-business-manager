@@ -424,7 +424,7 @@ class BoutiqueService:
             """
             SELECT COUNT(*) AS num_sales,
                    COALESCE(SUM(quantity_sold), 0) AS total_units_sold,
-                   COALESCE(SUM(sale_price), 0) AS total_revenue
+                   COALESCE(SUM(quantity_sold * sale_price), 0) AS total_revenue
             FROM sales
             WHERE DATE(sale_date) BETWEEN ? AND ?
             """,
