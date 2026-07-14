@@ -83,7 +83,12 @@ init_db(DATABASE_NAME)
 boutique_service = BoutiqueService(DATABASE_NAME)
 
 # Build agent and runner
-agent, runner, session_service = build_boutique_manager_agent(boutique_service)
+# New (correct)
+agent = build_boutique_manager_agent(boutique_service)
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+session_service = InMemorySessionService()
+runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 
 # ---------------- SESSION MANAGEMENT ----------------
 
