@@ -1,6 +1,6 @@
 streamlit>=1.38.0
 google-adk[extensions]
-litellm
+litellm==1.17.2
 python-telegram-bot==20.7
 python-dotenv==1.0.0
 google-adk==0.1.0
