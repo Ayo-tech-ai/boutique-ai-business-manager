@@ -1,6 +1,23 @@
-streamlit>=1.38.0
-google-adk[extensions]
-litellm
+#streamlit>=1.38.0
+#google-adk[extensions]
+#litellm
 #python-telegram-bot==20.7
 #python-dotenv==1.0.0
 #flask==2.3.3
+
+
+# Core dependencies (from your working Streamlit Cloud deployment)
+streamlit==1.59.2
+google-adk==2.4.0
+litellm==1.92.0
+python-dotenv==1.2.2
+
+# Telegram Bot
+python-telegram-bot==20.7
+
+# Web server for keep-alive (UptimeRobot)
+flask==3.0.3
+
+# Additional dependencies (already in your environment)
+pandas==2.3.3
+numpy==2.5.1
