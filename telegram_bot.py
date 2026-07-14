@@ -7,7 +7,7 @@ import os
 import asyncio
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from flask import Flask, request, jsonify
@@ -245,9 +245,9 @@ async def inventory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show recent sales."""
     try:
-        from datetime import date, timedelta
-        today = date.today().isoformat()
-        last_week = (date.today() - timedelta(days=7)).isoformat()
+        today_wat = datetime.now(WAT).date()
+        today = today_wat.isoformat()
+        last_week = (today_wat - timedelta(days=7)).isoformat()
 
         summary = boutique_service.get_sales_summary(last_week, today)
         recent_sales = boutique_service.get_recent_sales(limit=10)
@@ -280,10 +280,10 @@ async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show business statistics."""
     try:
-        from datetime import date, timedelta
-        today = date.today().isoformat()
-        last_week = (date.today() - timedelta(days=7)).isoformat()
-        last_month = (date.today() - timedelta(days=30)).isoformat()
+        today_wat = datetime.now(WAT).date()
+        today = today_wat.isoformat()
+        last_week = (today_wat - timedelta(days=7)).isoformat()
+        last_month = (today_wat - timedelta(days=30)).isoformat()
 
         inventory = boutique_service.check_inventory()
         weekly_summary = boutique_service.get_sales_summary(last_week, today)
