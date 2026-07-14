@@ -1,14 +1,16 @@
 """
 Telegram Bot for Boutique AI Business Manager
-Full agent integration - runs as a background worker on Render
+Full agent integration - runs as a web service on Render
 """
 
 import os
 import asyncio
 import logging
+import threading
 from datetime import datetime
 from typing import Optional
 
+from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -24,6 +26,35 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# ---------------- FLASK APP ----------------
+
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return jsonify({
+        "status": "online",
+        "bot": "Boutique AI Business Manager",
+        "time": datetime.now().isoformat()
+    })
+
+@flask_app.route('/ping')
+def ping():
+    """Health check endpoint for UptimeRobot to keep the bot alive."""
+    return jsonify({
+        "status": "alive",
+        "timestamp": datetime.now().isoformat()
+    })
+
+@flask_app.route('/health')
+def health():
+    """Detailed health check."""
+    return jsonify({
+        "status": "healthy",
+        "bot_running": True,
+        "timestamp": datetime.now().isoformat()
+    })
 
 # ---------------- CONFIG ----------------
 
@@ -338,10 +369,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Oops! Something went wrong. Please try again or use /help for commands."
         )
 
-# ---------------- MAIN ----------------
+# ---------------- RUN BOTH BOT AND WEB SERVER ----------------
 
-def main():
-    """Start the bot."""
+def run_bot():
+    """Run the Telegram bot."""
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -364,4 +395,17 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    # Get port from environment (Render sets this)
+    port = int(os.environ.get("PORT", 8080))
+    
+    # Run Flask in a separate thread
+    def run_flask():
+        flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    logger.info(f"🌐 Web server running on port {port}")
+    
+    # Run the bot (this blocks)
+    run_bot()
