@@ -388,14 +388,19 @@ def run_bot():
     )
     application.add_error_handler(error_handler)
 
-    # Initialize the bot before accessing properties
-    application.initialize()
+    # Initialize the bot and get bot info using asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
-    # Get bot info after initialization
-    bot_info = application.bot.get_me()
+    # Initialize and get bot info
+    loop.run_until_complete(application.initialize())
+    bot_info = loop.run_until_complete(application.bot.get_me())
+    loop.close()
+    
     logger.info("🤖 Starting Boutique AI Business Manager Telegram Bot...")
     logger.info(f"Bot username: @{bot_info.username}")
     
+    # Run polling (this blocks and handles its own event loop)
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True
