@@ -305,6 +305,7 @@ def display_sidebar_dashboard(service):
     total_sell_value = sum(p['quantity_in_stock'] * p['selling_price'] for p in inventory) if inventory else 0
     low_stock = [p for p in inventory if p['quantity_in_stock'] <= p['low_stock_threshold']] if inventory else []
     total_revenue = sales_summary.get('total_revenue', 0)
+    # Also check if it's being overwritten elsewhere
     potential_profit = total_sell_value - total_cost_value
     
     col1, col2 = st.sidebar.columns(2)
