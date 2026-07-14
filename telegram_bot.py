@@ -83,10 +83,7 @@ init_db(DATABASE_NAME)
 boutique_service = BoutiqueService(DATABASE_NAME)
 
 # Build agent and runner
-# New (correct)
 agent = build_boutique_manager_agent(boutique_service)
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 session_service = InMemorySessionService()
 runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 
@@ -391,8 +388,13 @@ def run_bot():
     )
     application.add_error_handler(error_handler)
 
+    # Initialize the bot before accessing properties
+    application.initialize()
+    
+    # Get bot info after initialization
+    bot_info = application.bot.get_me()
     logger.info("🤖 Starting Boutique AI Business Manager Telegram Bot...")
-    logger.info(f"Bot username: @{application.bot.username}")
+    logger.info(f"Bot username: @{bot_info.username}")
     
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
