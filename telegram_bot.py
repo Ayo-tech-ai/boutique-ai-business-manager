@@ -137,10 +137,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a welcome message when /start is issued."""
     user = update.effective_user
     user_id = str(user.id)
-    
+
     # Initialize session for this user
     get_or_create_session(user_id)
-    
+
     welcome_message = f"""
 👗 **Welcome to your Boutique AI Business Manager, {user.first_name}!**
 
@@ -216,12 +216,12 @@ async def inventory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not inventory:
             await update.message.reply_text("📦 Your inventory is empty. Add some items first!")
             return
-        
+
         total_items = len(inventory)
         low_stock = [p for p in inventory if p['quantity_in_stock'] <= p['low_stock_threshold']]
-        
+
         message = f"📦 **Current Inventory** ({total_items} items)\n\n"
-        
+
         for item in inventory[:15]:
             stock_status = "⚠️" if item['quantity_in_stock'] <= item['low_stock_threshold'] else "✅"
             message += f"{stock_status} **{item['item_name']}**"
@@ -230,13 +230,13 @@ async def inventory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if item['color']:
                 message += f" ({item['color']})"
             message += f"\n   Stock: {item['quantity_in_stock']} | Cost: ₦{item['cost_price']:,.0f} | Sell: ₦{item['selling_price']:,.0f}\n\n"
-        
+
         if total_items > 15:
             message += f"... and {total_items - 15} more items. Ask me about specific ones!\n\n"
-        
+
         if low_stock:
             message += f"⚠️ **Low Stock Alert:** {len(low_stock)} item(s) need restocking!"
-        
+
         await update.message.reply_text(message, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Inventory error: {e}")
@@ -248,15 +248,15 @@ async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from datetime import date, timedelta
         today = date.today().isoformat()
         last_week = (date.today() - timedelta(days=7)).isoformat()
-        
+
         summary = boutique_service.get_sales_summary(last_week, today)
         recent_sales = boutique_service.get_recent_sales(limit=10)
-        
+
         message = f"📊 **Sales Summary (Last 7 Days)**\n"
         message += f"• Total Revenue: ₦{summary['total_revenue']:,.0f}\n"
         message += f"• Total Units Sold: {summary['total_units_sold']}\n"
         message += f"• Number of Sales: {summary['num_sales']}\n\n"
-        
+
         if recent_sales:
             message += "🛒 **Recent Sales:**\n"
             for sale in recent_sales[:5]:
@@ -266,12 +266,12 @@ async def sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if sale.get('payment_method'):
                     message += f" - {sale['payment_method']}"
                 message += "\n"
-        
+
         if summary.get('best_sellers'):
             message += f"\n🏆 **Top Products:**\n"
             for item in summary['best_sellers'][:3]:
                 message += f"• {item['item_name']}: {item['units_sold']} units\n"
-        
+
         await update.message.reply_text(message, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Sales error: {e}")
@@ -284,37 +284,37 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         today = date.today().isoformat()
         last_week = (date.today() - timedelta(days=7)).isoformat()
         last_month = (date.today() - timedelta(days=30)).isoformat()
-        
+
         inventory = boutique_service.check_inventory()
         weekly_summary = boutique_service.get_sales_summary(last_week, today)
         monthly_summary = boutique_service.get_sales_summary(last_month, today)
-        
+
         total_items = len(inventory)
         total_cost = sum(p['quantity_in_stock'] * p['cost_price'] for p in inventory) if inventory else 0
         total_value = sum(p['quantity_in_stock'] * p['selling_price'] for p in inventory) if inventory else 0
         low_stock = [p for p in inventory if p['quantity_in_stock'] <= p['low_stock_threshold']] if inventory else []
         potential_profit = total_value - total_cost
-        
+
         message = f"📊 **Business Dashboard**\n\n"
-        
+
         message += f"📦 **Inventory Overview:**\n"
         message += f"• Total Items: {total_items}\n"
         message += f"• Stock Cost: ₦{total_cost:,.0f}\n"
         message += f"• Potential Value: ₦{total_value:,.0f}\n"
         message += f"• Potential Profit: ₦{potential_profit:,.0f}\n"
         message += f"• Low Stock Items: {len(low_stock)}\n\n"
-        
+
         message += f"💰 **Sales Performance:**\n"
         message += f"• Weekly Revenue: ₦{weekly_summary['total_revenue']:,.0f}\n"
         message += f"• Monthly Revenue: ₦{monthly_summary['total_revenue']:,.0f}\n"
         message += f"• Weekly Units: {weekly_summary['total_units_sold']}\n"
         message += f"• Monthly Units: {monthly_summary['total_units_sold']}\n\n"
-        
+
         if weekly_summary.get('best_sellers'):
             message += f"🏆 **Top Products (Week):**\n"
             for item in weekly_summary['best_sellers'][:3]:
                 message += f"• {item['item_name']}: {item['units_sold']} units\n"
-        
+
         await update.message.reply_text(message, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Stats error: {e}")
@@ -335,17 +335,17 @@ async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT
     """Handle natural language messages using the agent."""
     user_message = update.message.text
     user_id = str(update.effective_user.id)
-    
+
     # Get or create session for this user
     session_id = get_or_create_session(user_id)
-    
+
     # Show typing indicator
     await update.message.chat.send_action(action="typing")
-    
+
     try:
         # Run the agent
         response = await run_agent_turn(session_id, user_message)
-        
+
         # Split long messages (Telegram limit is 4096 characters)
         if len(response) > 4000:
             chunks = [response[i:i+4000] for i in range(0, len(response), 4000)]
@@ -365,16 +365,24 @@ async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log errors caused by updates."""
     logger.error(f"Update {update} caused error: {context.error}")
-    
+
     if update and update.effective_message:
         await update.effective_message.reply_text(
             "⚠️ Oops! Something went wrong. Please try again or use /help for commands."
         )
 
-# ---------------- RUN BOTH BOT AND WEB SERVER ----------------
+# ---------------- RUN BOT ----------------
 
 def run_bot():
-    """Run the Telegram bot."""
+    """Run the Telegram bot.
+
+    NOTE: We do NOT manually create/close an event loop here. run_polling()
+    fully manages its own event loop lifecycle internally (including calling
+    initialize() and get_me() for you). Manually creating a loop, running
+    initialize()/get_me() on it, and then closing it before calling
+    run_polling() causes "RuntimeError: Event loop is closed", because
+    run_polling() tries to reuse/build on a loop that no longer exists.
+    """
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -388,36 +396,29 @@ def run_bot():
     )
     application.add_error_handler(error_handler)
 
-    # Initialize the bot and get bot info using asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Initialize and get bot info
-    loop.run_until_complete(application.initialize())
-    bot_info = loop.run_until_complete(application.bot.get_me())
-    loop.close()
-    
     logger.info("🤖 Starting Boutique AI Business Manager Telegram Bot...")
-    logger.info(f"Bot username: @{bot_info.username}")
-    
-    # Run polling (this blocks and handles its own event loop)
+
+    # run_polling() handles initialize(), get_me(), the event loop, and
+    # graceful shutdown all on its own — just call it directly.
     application.run_polling(
         allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True
+        drop_pending_updates=True,
     )
+
+# ---------------- RUN BOTH BOT AND WEB SERVER ----------------
 
 if __name__ == "__main__":
     # Get port from environment (Render sets this)
     port = int(os.environ.get("PORT", 8080))
-    
+
     # Run Flask in a separate thread
     def run_flask():
         flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-    
+
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
     logger.info(f"🌐 Web server running on port {port}")
-    
-    # Run the bot (this blocks)
+
+    # Run the bot (this blocks, on the main thread, so signal handlers work fine)
     run_bot()
