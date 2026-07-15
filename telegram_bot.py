@@ -5,6 +5,8 @@ Full agent integration - runs as a web service on Render
 
 import os
 import asyncio
+import csv
+import io
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -164,6 +166,7 @@ I'm your intelligent shop assistant. I can help you manage your boutique through
 /inventory - View current inventory
 /sales - View recent sales
 /stats - View business statistics
+/export - Download inventory & sales as CSV
 /help - Show all commands
 
 Let's grow your boutique! 💪
@@ -181,6 +184,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /sales - Show recent sales and summary
 /stats - Show business statistics dashboard
 /restock - Guide for logging restocks
+/export_inventory - Download inventory as a CSV file
+/export_sales - Download sales records as a CSV file
+/export - Download both inventory and sales as CSV files
 
 **Natural Language Examples:**
 
@@ -331,6 +337,82 @@ async def restock_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "I'll help you log it properly! 💪"
     )
 
+def _rows_to_csv_bytes(rows: list, fieldnames: list) -> io.BytesIO:
+    """Converts a list of dicts into an in-memory CSV file (BytesIO),
+    ready to send via reply_document. Missing keys in a row are written
+    as blank cells rather than raising an error."""
+    text_buffer = io.StringIO()
+    writer = csv.DictWriter(text_buffer, fieldnames=fieldnames, extrasaction='ignore')
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+
+    byte_buffer = io.BytesIO(text_buffer.getvalue().encode('utf-8'))
+    byte_buffer.seek(0)
+    return byte_buffer
+
+async def export_inventory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Exports the full inventory as a downloadable CSV file."""
+    try:
+        inventory = boutique_service.check_inventory()
+
+        if not inventory:
+            await update.message.reply_text("📦 Your inventory is empty — nothing to export yet.")
+            return
+
+        fieldnames = [
+            "item_id", "item_name", "category", "size", "color",
+            "cost_price", "selling_price", "quantity_in_stock",
+            "low_stock_threshold", "created_at",
+        ]
+        csv_file = _rows_to_csv_bytes(inventory, fieldnames)
+
+        timestamp = datetime.now(WAT).strftime("%Y-%m-%d_%H%M")
+        filename = f"inventory_{timestamp}.csv"
+
+        await update.message.reply_document(
+            document=csv_file,
+            filename=filename,
+            caption=f"📦 Inventory export — {len(inventory)} item(s) as of {timestamp} (WAT)"
+        )
+    except Exception as e:
+        logger.error(f"Export inventory error: {e}")
+        await update.message.reply_text(f"⚠️ Error exporting inventory: {str(e)}")
+
+async def export_sales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Exports recent sales records as a downloadable CSV file."""
+    try:
+        # Pull a generous number of rows for export purposes, not just the
+        # small "recent" preview used by /sales.
+        sales = boutique_service.get_recent_sales(limit=1000)
+
+        if not sales:
+            await update.message.reply_text("🛒 No sales recorded yet — nothing to export.")
+            return
+
+        fieldnames = [
+            "sale_id", "item_name", "size", "color", "customer_name",
+            "quantity_sold", "sale_price", "payment_method", "sale_date",
+        ]
+        csv_file = _rows_to_csv_bytes(sales, fieldnames)
+
+        timestamp = datetime.now(WAT).strftime("%Y-%m-%d_%H%M")
+        filename = f"sales_{timestamp}.csv"
+
+        await update.message.reply_document(
+            document=csv_file,
+            filename=filename,
+            caption=f"🛒 Sales export — {len(sales)} record(s) as of {timestamp} (WAT)"
+        )
+    except Exception as e:
+        logger.error(f"Export sales error: {e}")
+        await update.message.reply_text(f"⚠️ Error exporting sales: {str(e)}")
+
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Exports both inventory and sales as two separate CSV files."""
+    await export_inventory_command(update, context)
+    await export_sales_command(update, context)
+
 async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle natural language messages using the agent."""
     user_message = update.message.text
@@ -391,6 +473,9 @@ def run_bot():
     application.add_handler(CommandHandler("sales", sales_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("restock", restock_command))
+    application.add_handler(CommandHandler("export_inventory", export_inventory_command))
+    application.add_handler(CommandHandler("export_sales", export_sales_command))
+    application.add_handler(CommandHandler("export", export_command))
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, natural_language_handler)
     )
