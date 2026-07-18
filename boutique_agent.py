@@ -9,7 +9,6 @@ a SkillToolset — mirroring the AgroScan Farm Manager pattern.
 from datetime import date
 
 from google.adk.agents import Agent
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.skills import models
 from google.adk.tools import FunctionTool
 from google.adk.tools.skill_toolset import SkillToolset
@@ -226,7 +225,7 @@ def build_boutique_manager_agent(boutique_service, model="gemini-3.5-flash"):
     )
 
     agent = Agent(
-        model=LiteLlm(model=model),
+        model=model,
         name="boutique_manager",
         description=(
             "An intelligent boutique business management system that "
