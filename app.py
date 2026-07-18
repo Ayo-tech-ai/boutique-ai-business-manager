@@ -15,6 +15,9 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
+# This tells ADK to use the Google AI Studio API Key method
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "FALSE"
+
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
