@@ -15,16 +15,12 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
-import litellm
-litellm.success_callback = []
-litellm.failure_callback = []
-litellm.turn_off_message_logging = True
-
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 from boutique_service import BoutiqueService, init_db, WAT
 from boutique_agent import build_boutique_manager_agent
+from key_rotation import GoogleKeyRotator, KeyRotationExhausted
 
 
 # ---------------- CONFIG ----------------
@@ -190,25 +186,44 @@ def apply_custom_css():
 
 # ---------------- SETUP ----------------
 
-def get_api_key():
-    try:
-        return st.secrets["GROQ_API_KEY"]
-    except Exception:
-        return os.environ.get("GROQ_API_KEY")
+def get_api_keys():
+    """Reads GOOGLE_API_KEY_1 and GOOGLE_API_KEY_2 from Streamlit
+    secrets, falling back to environment variables for local dev.
+    Either can be missing (rotation just won't have a fallback), but
+    at least one must be present."""
+    def _read(name):
+        try:
+            return st.secrets[name]
+        except Exception:
+            return os.environ.get(name)
+
+    return _read("GOOGLE_API_KEY_1"), _read("GOOGLE_API_KEY_2")
+
+
+@st.cache_resource
+def get_key_rotator():
+    """Builds the key rotator once per server process."""
+    key_1, key_2 = get_api_keys()
+    return GoogleKeyRotator(key_1, key_2)
 
 
 @st.cache_resource
 def get_boutique_service():
+    """Initializes the database and returns a shared BoutiqueService
+    instance. Cached so it's only created once per Streamlit server
+    process, not on every rerun."""
     init_db(DATABASE_NAME)
     return BoutiqueService(DATABASE_NAME)
 
 
 @st.cache_resource
 def get_agent_and_runner(_boutique_service):
-    groq_key = get_api_key()
-    if groq_key:
-        os.environ["GROQ_API_KEY"] = groq_key
+    """Builds the agent and runner once per server process.
+    The leading underscore on the parameter tells Streamlit's cache
+    not to try hashing the BoutiqueService object.
 
+    Assumes GOOGLE_API_KEY has already been set in the environment
+    by the key rotator before this runs."""
     agent = build_boutique_manager_agent(_boutique_service)
     session_service = InMemorySessionService()
     runner = Runner(
@@ -220,6 +235,8 @@ def get_agent_and_runner(_boutique_service):
 
 
 def get_or_create_session(session_service):
+    """Creates one ADK session per Streamlit browser session, stored
+    in st.session_state so it persists across reruns."""
     if "adk_session_id" not in st.session_state:
         session = session_service.create_session_sync(
             app_name=APP_NAME,
@@ -229,30 +246,36 @@ def get_or_create_session(session_service):
     return st.session_state.adk_session_id
 
 
-async def run_agent_turn(runner, session_id, message):
-    """Runs one turn of the agent and returns the final text response."""
-    events = await runner.run_debug(
-        message,
-        user_id=USER_ID,
-        session_id=session_id,
-        quiet=True,
-        verbose=False,
-    )
+async def run_agent_turn(runner, session_id, message, key_rotator):
+    """Runs one turn of the agent and returns the final text response.
+    Automatically retries with the backup Google API key if the
+    active one hits its quota limit mid-call."""
 
-    if not events:
+    async def _do_call():
+        events = await runner.run_debug(
+            message,
+            user_id=USER_ID,
+            session_id=session_id,
+            quiet=True,
+            verbose=False,
+        )
+
+        if not events:
+            return "No response was generated."
+
+        final_event = events[-1]
+
+        if final_event.content and final_event.content.parts:
+            response = " ".join(
+                part.text
+                for part in final_event.content.parts
+                if part.text
+            )
+            return response or "No response was generated."
+
         return "No response was generated."
 
-    final_event = events[-1]
-
-    if final_event.content and final_event.content.parts:
-        response = " ".join(
-            part.text
-            for part in final_event.content.parts
-            if part.text
-        )
-        return response or "No response was generated."
-
-    return "No response was generated."
+    return await key_rotator.call_with_failover(_do_call)
 
 
 # ---------------- SIDEBAR DASHBOARD ----------------
@@ -464,13 +487,16 @@ apply_custom_css()
 st.title("👗 Boutique AI Business Manager")
 st.caption("Your conversational assistant for running the shop — sales, restocks, expenses, and more.")
 
-if not get_api_key():
+key_1, key_2 = get_api_keys()
+if not key_1 and not key_2:
     st.error(
-        "GROQ_API_KEY is not set. Add it under Streamlit Cloud → App settings → "
-        "Secrets, or set it as an environment variable for local development."
+        "No Google API key is set. Add GOOGLE_API_KEY_1 (and optionally "
+        "GOOGLE_API_KEY_2) under Streamlit Cloud → App settings → Secrets, "
+        "or as environment variables for local development."
     )
     st.stop()
 
+key_rotator = get_key_rotator()
 boutique_service = get_boutique_service()
 agent, runner, session_service = get_agent_and_runner(boutique_service)
 session_id = get_or_create_session(session_service)
@@ -523,8 +549,16 @@ if prompt := st.chat_input("Tell me about a sale, restock, or ask about your sho
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response = asyncio.run(run_agent_turn(runner, session_id, prompt))
+                response = asyncio.run(
+                    run_agent_turn(runner, session_id, prompt, key_rotator)
+                )
                 st.session_state.data_changed = True
+            except KeyRotationExhausted:
+                response = (
+                    "⚠️ Both API keys have hit their daily free-tier limit. "
+                    "This resets at midnight Pacific Time — try again after "
+                    "that, or add a paid key for uninterrupted testing."
+                )
             except Exception as e:
                 response = f"⚠️ Something went wrong: {e}"
         st.markdown(response)
