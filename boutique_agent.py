@@ -192,7 +192,7 @@ If required information is missing, ask only for what's missing.
     )
 
 
-def build_boutique_manager_agent(boutique_service, groq_model="groq/openai/gpt-oss-120b"):
+def build_boutique_manager_agent(boutique_service, groq_model="qwen/qwen3.6-27b"):
     """
     Assembles and returns the Boutique AI Business Manager Agent,
     bound to the given BoutiqueService instance.
