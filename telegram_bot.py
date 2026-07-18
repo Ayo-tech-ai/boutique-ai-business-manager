@@ -4,6 +4,18 @@ Full agent integration - runs as a web service on Render
 """
 
 import os
+# ⚠️ CRITICAL: Set this BEFORE importing any ADK/Google modules
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "FALSE"
+
+import asyncio
+import csv
+import io
+import logging
+import threading
+from datetime import datetime, timedelta
+from typing import Optional
+# ... rest of imports
+
 import asyncio
 import csv
 import io
