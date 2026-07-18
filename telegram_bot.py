@@ -21,6 +21,7 @@ from boutique_service import BoutiqueService, init_db, WAT
 from boutique_agent import build_boutique_manager_agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from key_rotation import GoogleKeyRotator, KeyRotationExhausted
 
 # Setup logging
 logging.basicConfig(
@@ -66,15 +67,18 @@ USER_ID = "telegram_user"
 
 # Get tokens from environment variables
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GOOGLE_API_KEY_1 = os.environ.get("GOOGLE_API_KEY_1")
+GOOGLE_API_KEY_2 = os.environ.get("GOOGLE_API_KEY_2")
 
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN environment variable not set!")
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY environment variable not set!")
+if not GOOGLE_API_KEY_1 and not GOOGLE_API_KEY_2:
+    raise ValueError("At least one Google API key must be set (GOOGLE_API_KEY_1 or GOOGLE_API_KEY_2)!")
 
-# Set Groq API key
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+# ---------------- KEY ROTATOR ----------------
+
+# Build key rotator with available keys
+key_rotator = GoogleKeyRotator(GOOGLE_API_KEY_1, GOOGLE_API_KEY_2)
 
 # ---------------- INITIALIZE SERVICES ----------------
 
@@ -84,7 +88,7 @@ init_db(DATABASE_NAME)
 # Create service instance
 boutique_service = BoutiqueService(DATABASE_NAME)
 
-# Build agent and runner
+# Build agent and runner (agent will use the GOOGLE_API_KEY from environment)
 agent = build_boutique_manager_agent(boutique_service)
 session_service = InMemorySessionService()
 runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
@@ -105,8 +109,9 @@ def get_or_create_session(user_id: str):
     return user_sessions[user_id]
 
 async def run_agent_turn(session_id: str, message: str) -> str:
-    """Run one turn of the agent and return the response."""
-    try:
+    """Run one turn of the agent and return the response with automatic key failover."""
+    
+    async def _do_call():
         events = await runner.run_debug(
             message,
             user_id=USER_ID,
@@ -129,9 +134,14 @@ async def run_agent_turn(session_id: str, message: str) -> str:
             return response or "No response was generated."
 
         return "No response was generated."
-    except Exception as e:
-        logger.error(f"Error running agent: {e}")
-        return f"⚠️ Something went wrong: {str(e)}"
+    
+    try:
+        return await key_rotator.call_with_failover(_do_call)
+    except KeyRotationExhausted:
+        return (
+            "⚠️ Both Google API keys have hit their daily free-tier limit. "
+            "This resets at midnight Pacific Time — try again after that."
+        )
 
 # ---------------- COMMAND HANDLERS ----------------
 
@@ -425,7 +435,7 @@ async def natural_language_handler(update: Update, context: ContextTypes.DEFAULT
     await update.message.chat.send_action(action="typing")
 
     try:
-        # Run the agent
+        # Run the agent with automatic key failover
         response = await run_agent_turn(session_id, user_message)
 
         # Split long messages (Telegram limit is 4096 characters)
