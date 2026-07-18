@@ -192,10 +192,15 @@ If required information is missing, ask only for what's missing.
     )
 
 
-def build_boutique_manager_agent(boutique_service, groq_model="groq/qwen/qwen3.6-27b"):
+def build_boutique_manager_agent(boutique_service, model="gemini-3.5-flash"):
     """
     Assembles and returns the Boutique AI Business Manager Agent,
     bound to the given BoutiqueService instance.
+
+    Args:
+        boutique_service: The BoutiqueService instance for database operations.
+        model: The model string to use (default: "gemini-3.5-flash").
+               Can be overridden to test different models.
     """
     today_str = date.today().isoformat()
 
@@ -221,7 +226,7 @@ def build_boutique_manager_agent(boutique_service, groq_model="groq/qwen/qwen3.6
     )
 
     agent = Agent(
-        model=LiteLlm(model=groq_model),
+        model=LiteLlm(model=model),
         name="boutique_manager",
         description=(
             "An intelligent boutique business management system that "
