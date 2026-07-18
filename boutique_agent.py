@@ -192,7 +192,7 @@ If required information is missing, ask only for what's missing.
     )
 
 
-def build_boutique_manager_agent(boutique_service, groq_model="groq/meta-llama/llama-4-scout-17b-16e-instruct"):
+def build_boutique_manager_agent(boutique_service, groq_model="groq/openai/gpt-oss-120b"):
     """
     Assembles and returns the Boutique AI Business Manager Agent,
     bound to the given BoutiqueService instance.
